@@ -1,0 +1,31 @@
+# /eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY1YzBjYTQ4OGEwMWJjMzg3NzlmZjRiZSIsImlhdCI6MTcwNzEzMzUxMn0.2uaAeEHoOLxIV5A1GXnbgZ_yabaX6AsHn57vy2-7ACI
+
+
+# POST http://localhost:3000/signup
+# Content-Type: application/json
+
+# {
+    # "fullname": "Abhs",
+    # "email": "abhi@gmail.com",
+    # "password": "Abhs@1234"
+
+# }
+
+# POST http://localhost:3000/get-blog
+# Content-Type: application/json
+# # Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY1YzBjYTQ4OGEwMWJjMzg3NzlmZjRiZSIsImlhdCI6MTcwNzEzMzUxMn0.2uaAeEHoOLxIV5A1GXnbgZ_yabaX6AsHn57vy2-7ACI
+
+
+# { 
+#     "blog_id": "People-who-are-blind-can-navigate-indoors-with-a-phone-technologyPawBn8EjQkHMxWI5gMNh0"
+# }
+
+
+POST http://localhost:3000/get-profile
+Content-Type: application/json
+# Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY1YzBjYTQ4OGEwMWJjMzg3NzlmZjRiZSIsImlhdCI6MTcwNzEzMzUxMn0.2uaAeEHoOLxIV5A1GXnbgZ_yabaX6AsHn57vy2-7ACI
+
+
+{ 
+    "username": "ashuch"
+}
