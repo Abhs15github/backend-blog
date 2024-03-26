@@ -1,7 +1,6 @@
 import mongoose, { Schema } from "mongoose";
 
 const blogSchema = mongoose.Schema({
-
     blog_id: {
         type: String,
         required: true,
@@ -58,14 +57,16 @@ const blogSchema = mongoose.Schema({
     draft: {
         type: Boolean,
         default: false
+    },
+    approved: {
+        type: Boolean,
+        default: false
     }
-
 }, 
 { 
     timestamps: {
         createdAt: 'publishedAt'
     } 
-
 })
 
 export default mongoose.model("blogs", blogSchema);

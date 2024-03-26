@@ -228,7 +228,7 @@ server.post('/latest-blogs', (req, res) => {
   Blog.find({ draft: false })
   .populate("author", "personal_info.profile_img personal_info.username personal_info.fullname -_id")
   .sort({ "publishedAt": -1 })
-  .select("blog_id title des banner activity tags publishedAt -_id")
+  .select("blog_id _id title des banner activity tags publishedAt")
   .skip((page - 1) * maxLimit)
   .limit(maxLimit)
   .then(blogs => {
@@ -240,6 +240,21 @@ server.post('/latest-blogs', (req, res) => {
   })
 
 })
+
+
+server.post('/all-blogs', (req, res) => {
+  Blog.find({ draft: false })
+  .populate("author", "personal_info.profile_img personal_info.username personal_info.fullname -_id")
+  .sort({ "publishedAt": -1 })
+  .select("blog_id _id title des banner activity tags publishedAt")
+  .then(blogs => {
+    return res.status(200).json({ blogs })
+  })
+  .catch(err => {
+    return res.status(500).json({ error: err.message })
+  })
+})
+
 
 server.post("/all-latest-blogs-count", (req, res) => {
   Blog.countDocuments({ draft: false })
@@ -385,7 +400,7 @@ server.post("/get-profile", async (req, res) => {
   try {
     const { username } = req.body;
 
-    // Find the user by username, excluding sensitive fields
+    // Find the user by username, excluding sensitive fields 
     const user = await User.findOne({ "personal_info.username": username })
       .select("-personal_info.password -google_auth -updatedAt -blogs");
 
@@ -402,6 +417,49 @@ server.post("/get-profile", async (req, res) => {
 });
 
 
+server.post("/update-profile-img", verifyJWT, (req, res) => {
+  let { url } = req.body;
+  User.findOneAndUpdate({ _id: req.user }, { "personal_info.profile_img": url })
+  .then(() => {
+    return res.status(200).json({ profile_img: url })
+  })
+  .catch(err => {
+    return res.status(500).json({ error: err.message })
+  })
+})
+
+server.post("/update-profile", verifyJWT, async (req, res) => {
+  try {
+    const { username, bio } = req.body;
+    const bioLimit = 255; // Assuming this is defined somewhere
+
+    if (username.length < 2) {
+      return res.status(403).json({ error: "Please enter a username with at least 2 letters" });
+    }
+
+    if (bio.length > bioLimit) {
+      return res.status(403).json({ error: `Bio should not be more than ${bioLimit} characters` });
+    }
+
+    const UpdateObj = {
+      "personal_info.username": username,
+      "personal_info.bio": bio
+    };
+
+    const updatedUser = await User.findOneAndUpdate({ _id: req.user }, UpdateObj, {
+      runValidators: true,
+      new: true // Return the updated document
+    });
+
+    return res.status(200).json({ username: updatedUser.personal_info.username });
+  } catch (err) {
+    if (err.code === 11000) {
+      return res.status(409).json({ error: "Username is already taken" });
+    }
+    return res.status(500).json({ error: err.message });
+  }
+});
+
 
 
 server.post('/create-blog', verifyJWT, (req, res) => {
@@ -416,7 +474,7 @@ server.post('/create-blog', verifyJWT, (req, res) => {
   if(!draft){
 
   
-    if (!des.length || des.length > 200) {
+    if (!des.length || des.length > 250) {
       return res.status(403).json({ error: "Kindly provide the blog description as well" });
     }
   
@@ -514,33 +572,39 @@ server.post("/like-blog", verifyJWT, (req, res) => {
 
   let { _id, isLikedByUser } = req.body; 
   let incrementVal = !isLikedByUser ? 1 : -1;
-  Blog.findOneAndUpdate({ _id}, { $inc: { "activity.total_likes": incrementVal } })
+  Blog.findOneAndUpdate({ _id}, { $inc: { "activity.total_likes": incrementVal } }, { new: true })
   .then(blog => {
-    if(!isLikedByUser){
+    if (!blog) {
+      return res.status(404).json({ error: "Blog not found" });
+    }
+
+    if (!isLikedByUser) {
       let like = new Notification({
         type: "like",
         blog: _id,
         notification_for: blog.author,
         user: user_id
-      })
+      });
 
       like.save().then(notification => {
-        return res.status(200).json({ liked_by_user: true })
-      })
-
-    }
-
-    else{
+        return res.status(200).json({ liked_by_user: true });
+      });
+    } else {
       Notification.findOneAndDelete({ user: user_id, blog: _id, type: "like" })
       .then(data => {
-        return res.status(200).json({ liked_by_user: false })
+        return res.status(200).json({ liked_by_user: false });
       })
       .catch(err => {
         return res.status(500).json({ error: err.message });
-      })
+      });
     }
   })
-})
+  .catch(err => {
+    console.error("Error liking blog:", err);
+    return res.status(500).json({ error: "Internal server error" });
+  });
+});
+
 
 
 
@@ -572,6 +636,7 @@ server.post("/add-comment", verifyJWT, (req, res) => {
 
   if(replying_to){
     commentObj.parent = replying_to;
+    commentObj.isReply = true;
   }
 
   new Comment(commentObj).save().then(async commentFile => {
@@ -617,7 +682,7 @@ server.post("/get-blog-comments", (req, res) => {
   .skip(skip)
   .limit(maxLimit)
   .sort({
-    'commenntedAt': -1
+    'commentedAt': -1
   })
   .then(comment => {
     return res.status(200).json(comment);
@@ -627,6 +692,59 @@ server.post("/get-blog-comments", (req, res) => {
     return res.status(500).json({ error: err.message })
   })
 })
+
+
+
+server.put('/toggle-approval/:blog_id', async (req, res) => {
+  const { blog_id } = req.params;
+  try {
+    const blog = await Blog.findById(blog_id);
+    if (!blog) {
+      return res.status(404).json({ message: 'Blog not found' });
+    }
+
+    // Toggle the approved value
+    blog.approved = !blog.approved;
+    await blog.save();
+
+    res.status(200).json({ message: 'Blog approval status toggled', blog });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Failed to toggle blog approval status', error });
+  }
+});
+
+server.post("/get-replies", ( req, res) => {
+  let { _id, skip } = req.body;
+
+  let maxLimit = 5;
+
+  Comment.findOne({ _id })
+  .populate({
+    path: "children",
+    option: {
+      limit: maxLimit,
+      skip: skip,
+      sort: { 'commentedAt': -1}
+    },
+
+    populate: {
+      path:'commented_by',
+      select:"personal_info.profile_img personal_info.fullname personal_info.username"
+    },
+    select: "-blog_id -updatedAt"
+  })
+  .select("children")
+  .then(doc => {
+    return res.status(200).json({ replies: doc.children })
+  })
+  .catch(err => {
+    return res.status(500).json({ error: err.message})
+  })
+})
+
+
+
 
 
 server.listen(PORT, () => {
